@@ -18,13 +18,6 @@ import (
 const (
 	// 2GB
 	MAX_MSG_SIZE = 2 * 1024 * 1024 * 1024
-	// 1K
-	BATCH_SIZE = 1000
-)
-
-var (
-	n,
-	p int
 )
 
 type CancelFunc func()
@@ -80,19 +73,19 @@ func main() {
 	}
 
 	// 10k
-	n = 10000
-	p = 10
+	// n = 10000
+	// p = 10
 	// 10 batches
-	maxNumberOfBatches := n / BATCH_SIZE
-	if n%BATCH_SIZE > 0 {
+	maxNumberOfBatches := cfg.n / cfg.batchSize
+	if cfg.n%cfg.batchSize > 0 {
 		maxNumberOfBatches++
 	}
 
 	for batchNo := 0; batchNo < maxNumberOfBatches; batchNo++ {
 
 		txn := dgClient.NewTxn()
-		start := batchNo*BATCH_SIZE + 1
-		end := (batchNo + 1) * BATCH_SIZE
+		start := batchNo*cfg.batchSize + 1
+		end := (batchNo + 1) * cfg.batchSize
 		log.Infof("Batch %d start here, start idx %d, end %d, time now %v\n", batchNo, start, end, time.Now())
 		if _, err := createNode(ctx, txn, "TPE", start, end); err != nil {
 			log.Fatal("failed to mutate ", err)
@@ -146,7 +139,7 @@ func createFREs(ctx context.Context, dgClient *dgo.Dgraph, batchNo int, level in
 }
 
 func createNode(ctx context.Context, txn *dgo.Txn, node_name string, start, end int) (*api.Response, error) {
-	// query := "query {\n"
+
 	selfQuad := "_:self%d <name> \"%s%d\" .\n_:self%d <dgraph.type> \"TPE\" .\n"
 	nQuads := []byte{}
 	for i := start; i <= end; i++ {
@@ -159,14 +152,6 @@ func createNode(ctx context.Context, txn *dgo.Txn, node_name string, start, end 
 	}
 
 	return txn.Mutate(ctx, mu)
-	// req := &api.Request{
-	// 	Mutations: []*api.Mutation{mu},
-	// }
-	// if len(node.Children) > 0 {
-	// 	req.Query = query
-	// }
-	// return txn.Do(ctx, req)
-
 }
 
 func createNode1(ctx context.Context, txn *dgo.Txn, selfName, childName string, level, batchStart, batchEnd int) (*api.Response, error) {
@@ -181,10 +166,9 @@ func createNode1(ctx context.Context, txn *dgo.Txn, selfName, childName string, 
 
 	for nodeNumber := batchStart; nodeNumber <= batchEnd; nodeNumber++ {
 		m := []byte(fmt.Sprintf(selfQuad, nodeNumber, selfName, nodeNumber, nodeNumber))
-		maxChildNumber := (level - 1) * n
-		minChildNumber := maxChildNumber - n + 1
-		// endRange := n + 10000
-		childrenNumbers := getChildrenNumbers(int64(nodeNumber*2), minChildNumber, maxChildNumber, p)
+		maxChildNumber := (level - 1) * cfg.n
+		minChildNumber := maxChildNumber - cfg.n + 1
+		childrenNumbers := getChildrenNumbers(int64(nodeNumber*2), minChildNumber, maxChildNumber, cfg.p)
 		for idx, childrenNumber := range childrenNumbers {
 			q1 := []byte(fmt.Sprintf(queryQuad, nodeNumber, idx, childName, childrenNumber))
 			m1 := []byte(fmt.Sprintf(childQuad, nodeNumber, nodeNumber, idx))
@@ -248,17 +232,6 @@ func getDgraphClient(endpoint string) (*dgo.Dgraph, CancelFunc) {
 	}
 }
 
-func createTPEs(ctx context.Context, txn *dgo.Txn, n int) {
-	// for i := 1; i <= n; i++ {
-	// 	node := New(fmt.Sprintf("tpe%d", i), []string{})
-	// 	res, err := createNode(ctx, txn, node)
-	// 	if err != nil {
-	// 		log.Fatal("failed to mutate ", err)
-	// 	}
-	// 	fmt.Println("res is", res.String())
-	// }
-}
-
 func getChildrenNumbers(seed int64, min, max, numberOfRands int) []int {
 	childrenNumbers := make([]int, numberOfRands)
 	rand.Seed(seed)
@@ -270,7 +243,7 @@ func getChildrenNumbers(seed int64, min, max, numberOfRands int) []int {
 }
 
 func getBatchStartAndEnd(level, batchNo int) (int, int) {
-	start := (level-1)*n + ((batchNo - 1) * BATCH_SIZE)
-	end := start + BATCH_SIZE - 1
+	start := (level-1)*cfg.n + ((batchNo - 1) * cfg.batchSize)
+	end := start + cfg.batchSize - 1
 	return start, end
 }
